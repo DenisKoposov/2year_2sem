@@ -3,14 +3,15 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <errno.h>
+#include <math.h>
 #include <pthread.h>
-#include <sys/types.h>
+//#include <sys/types.h>
 
-#include <hwloc.h>
-
-#define N 160000000 // Corresponds to the number
+#define N 58982400L // Corresponds to the number
                     // of intervals for separated calculation
                     // divided by 2; N = numOfintervals/2;
+#define TO 100.0
+#define FROM 1.0
 
 typedef struct argument
 {
@@ -23,16 +24,15 @@ typedef struct argument
 
 double f ( double x )
 {
-    return x * x;
+    return sinl(x) / x;
 }
 
 void calculate ( Arg* arg )
 {
-
     double from = arg->left;
     double to   = arg->right;
     long int parts = arg->segments;
-    double step = ( to - from ) / arg->segments;
+    double step = ( to - from ) / (double)arg->segments;
     double result = 0;
 
     result = f( from ) + f( to );
@@ -41,47 +41,36 @@ void calculate ( Arg* arg )
     for ( i = 1; i < parts; i++ )
     {
         if ( i % 2 == 0 )
-            result += 2 * f( from + i * step );
+            result += 2.0 * f( from + i * step );
         else
-            result += 4 * f( from + i * step );
+            result += 4.0 * f( from + i * step );
     }
 
-    arg->res = result / 3 * step;
+    arg->res = result / 3.0 * step;
 }
 
-// input from, to, threads ( n <= 0 => nCPU used )
+// threads ( n <= 0 => nCPU used )
 int main ( int argc, char** argv )
 {
-    double from = 0;
-    double to = 0;
     int threadsNumber = 0;
 //  Input Handling=====================================
-    if ( argc != 4 )
+    if ( argc != 2 )
     {
         printf( "%s", "Incorrect number of arguments\n" );
         exit( EXIT_FAILURE );
     }
 
-    if ( sscanf( argv[1], "%lf", &from ) == 0 )
-    {
-        printf( "%s", "Incorrect field: from\n" );
-        exit( EXIT_FAILURE );
-    }
-
-    if ( sscanf( argv[2], "%lf", &to ) == 0 )
-    {
-        printf( "%s", "Incorrect field: to\n" );
-        exit( EXIT_FAILURE );
-    }
-
-    if ( sscanf( argv[3], "%d", &threadsNumber ) == 0 )
+    if ( sscanf( argv[1], "%d", &threadsNumber ) == 0 )
     {
         printf( "%s", "Incorrect field: threadsNumber\n" );
         exit( EXIT_FAILURE );
     }
 
     if ( threadsNumber <= 0 )
-        threadsNumber = 1;
+    {
+        printf( "%s", "Negative number of threads\n" );
+        exit( EXIT_FAILURE );
+    }
 
     size_t cores = sysconf( _SC_NPROCESSORS_ONLN );
 
@@ -92,7 +81,7 @@ int main ( int argc, char** argv )
     }
 
 //=======================================================
-    double segLeng = ( to - from ) / threadsNumber;
+    double segLeng = ( TO - FROM ) / (double)threadsNumber;
 
     pthread_t* threads = ( pthread_t* ) malloc( sizeof( pthread_t ) * threadsNumber );
     Arg* args          = ( Arg* ) malloc ( sizeof( Arg ) * threadsNumber );
@@ -110,29 +99,17 @@ int main ( int argc, char** argv )
     else
         even_N = 2 * even_N;
 
-    pthread_attr_t attr;
-    pthread_attr_init( &attr );
-    cpu_set_t cpu_set;
-
-    long int i = 0;
+    int i = 0;
     int border =  cores / 2;
 
     for ( i = 0; i < threadsNumber; ++i )
     {
-        args[i].left     = from + i * segLeng;
-        args[i].right    = from + ( i + 1 ) * segLeng;
+        args[i].left     = FROM + i * segLeng;
+        args[i].right    = FROM + ( i + 1 ) * segLeng;
         args[i].segments = even_N;
         args[i].res      = 0;
 
-        CPU_ZERO( &cpu_set );
-
-        if ( i < border )
-            CPU_SET( i * 2, &cpu_set );
-        else
-            CPU_SET( ( i - border ) * 2 + 1, &cpu_set );
-
-        pthread_attr_setaffinity_np( &attr, sizeof ( cpu_set_t ), &cpu_set );
-        errno = pthread_create( &threads[i], &attr, ( void* (*) ( void* ) ) calculate, &( args[i] ) );
+        errno = pthread_create( &threads[i], NULL, ( void* (*) ( void* ) ) calculate, &( args[i] ) );
 
         if ( errno != 0 )
         {
@@ -158,7 +135,6 @@ int main ( int argc, char** argv )
 
     printf ( "Result is %lf\n", sum );
 
-    pthread_attr_destroy( &attr );
     free( threads );
     free( args );
 

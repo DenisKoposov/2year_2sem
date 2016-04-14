@@ -155,7 +155,7 @@ int resize_test()
         return FAILED;
     }
 
-    stack_dtor(stack );
+    stack_dtor( stack );
     stack = NULL;
 
     if ( resize ( stack, 100 ) != ERROR )
@@ -266,6 +266,13 @@ int pop_test()
 int peek_test()
 {
     stack_t*  stack = stack_ctor(1000);
+
+    if ( peek ( stack ) != NULL )
+    {
+        fprintf( stderr, "    \033[31mFAILED\033[0m -- peek_test, line %d\n", __LINE__ );
+        return FAILED;
+    }
+
     int i = 0;
 
     for ( i = 0; i < 100; i++ )
@@ -327,9 +334,25 @@ int iterator_test() {
     for ( i = 0; i < 15; i++ )
         push( stack, i );
 
-    i--;
     init( &itr, stack );
+    i--;
 
+    int count = 0;
+
+    while ( !isEnd( &itr ) )    // Counting number of elements placed into the stack
+    {                           //
+        next( &itr );           //
+        count++;                //
+    }                           //
+
+    if ( count != 15 )
+    {
+        fprintf( stderr, "    \033[31mFAILED\033[0m -- iterator_test, line %d\n", __LINE__ );
+        stack_dtor( stack );
+        return FAILED;
+    }
+
+    init( &itr, stack );        //reinitialization of iterator structure
     while ( !isEnd( &itr ) )
     {
         tmp = current( &itr );
