@@ -126,10 +126,7 @@ int isEnd ( Iterator* itr )
     if ( itr == NULL )
         return ERROR;
 
-    if ( itr->end_ptr == itr->cur )
-        return 1; /// true
-    else
-        return 0; /// false
+    return itr->end_ptr == itr->cur;
 }
 //======================================================
 data_t* getFirst ( Iterator* itr )

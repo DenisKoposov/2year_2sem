@@ -60,10 +60,12 @@ int crash_ctor_and_push_test()
         perror("    \033[33mERROR\033[0m: -- setrlimit in crash_ctor_test");
         return ERROR;
     }
-
+/* Testing the case when there is no memory even for stack_t structure
+ * to cover this piece of code in stack_function.c (stack_ctor)
+ */
     stack_t* new_stack = NULL;
-    new_stack = stack_ctor(10);
-
+    new_stack = stack_ctor(10); // memory won't be allocated
+                                // due to settings set by setrlimit
     if ( new_stack != NULL )
     {
         fprintf( stderr, "    \033[31mFAILED\033[0m -- crash_ctor_test, line %d\n", __LINE__ );
@@ -76,7 +78,9 @@ int crash_ctor_and_push_test()
         perror("    \033[33mERROR\033[0m: -- setrlimit in crash_ctor_test");
         return ERROR;
     }
-
+/* Imitating artificial stack overwflowing in order to cause
+ * resize method during execution of push method
+ */
     new_stack = stack_ctor( 32768 );
     stack_t* old_stack = NULL;
 
@@ -96,9 +100,11 @@ int crash_ctor_and_push_test()
     stack_dtor( new_stack );
     new_stack = NULL;
     old_stack = NULL;
-
-    new_stack = stack_ctor( INT_MAX );
-
+/* Testing the case when stack structure is created successfully, but
+ * stack->array can't be formed]
+ */
+    new_stack = stack_ctor( INT_MAX );  // typically, system won't allocate such vast
+                                        // segment of memory at once
     if ( new_stack != NULL && new_stack->stack_arr != NULL )
     {
         fprintf( stderr, "    \033[31mFAILED\033[0m -- crash_ctor_test, line %d\n", __LINE__ );
@@ -116,8 +122,7 @@ int resize_test()
     size_t old_max_size = stack->max_size;
     resize( stack, 0 );
 
-    if ( ( stack == NULL ) ||
-         ( stack->max_size != old_max_size ) )
+    if ( ( stack == NULL ) || ( stack->max_size != old_max_size ) )
     {
         stack_dtor( stack );
         fprintf( stderr, "    \033[31mFAILED\033[0m -- resize_test, line %d\n", __LINE__ );
@@ -126,15 +131,16 @@ int resize_test()
 
     int res = resize( stack, 300 );
 
-    if ( ( stack == NULL ) ||
-         ( res != ERROR && stack->max_size != 300 ) )
+    if ( ( stack == NULL ) || ( res != ERROR && stack->max_size != 300 ) )
     {
         stack_dtor( stack );
         fprintf( stderr, "    \033[31mFAILED\033[0m -- resize_test, line %d\n", __LINE__ );
         return FAILED;
     }
+
     int i = 0;
     resize( stack, 200 );
+
     for ( i = 0; i < 200; i++ )
         push( stack, ( data_t ) i );
 //    dump( stack );
@@ -147,11 +153,10 @@ int resize_test()
 
     res = resize ( stack, INT_MAX );
 
-    if ( ( stack == NULL ) ||
-         ( res != ERROR ) )
+    if ( ( stack == NULL ) || ( res != ERROR ) )
     {
-        stack_dtor( stack );
         fprintf( stderr, "    \033[31mFAILED\033[0m -- resize_test, line %d\n", __LINE__ );
+        stack_dtor( stack );
         return FAILED;
     }
 
@@ -187,7 +192,9 @@ int push_test()
         }
     }
 
-    if ( stack->size != 100 || stack->max_size != old_max_size || stack->size < 0 || stack->size > stack->max_size )
+    if ( ( stack->size != 100 ) ||
+         ( stack->max_size != old_max_size ) ||
+         ( stack->size < 0 ) || ( stack->size > stack->max_size ) )
     {
         stack_dtor( stack );
         fprintf( stderr, "    \033[31mFAILED\033[0m -- push_test, line %d\n", __LINE__ );
@@ -312,9 +319,8 @@ int iterator_test() {
     data_t* tmp = NULL;
     Iterator itr;
     init( &itr, stack );
-    tmp = getFirst( &itr );
 
-    if ( getFirst( &itr ) != NULL )
+    if ( getFirst( &itr ) != NULL ) // Trying to get the first element of the empty stack
     {
         fprintf( stderr, "    \033[31mFAILED\033[0m -- iterator_test, line %d\n", __LINE__ );
         stack_dtor( stack );
@@ -323,13 +329,13 @@ int iterator_test() {
 
     int i = 0;
 
-    init( &itr, NULL );
-    init( NULL, stack );
-
-    isEnd( NULL );
-    current( NULL );
-    getFirst( NULL );
-    next( NULL );
+    init( &itr, NULL );     // Testing the result of functions with incorrect parameters
+    init( NULL, stack );    // They dereference pointers, so there could be mistakes in implementations
+                            // that can cause segmentation fault
+    isEnd( NULL );          //
+    current( NULL );        //
+    getFirst( NULL );       //
+    next( NULL );           //
 
     for ( i = 0; i < 15; i++ )
         push( stack, i );
@@ -352,8 +358,9 @@ int iterator_test() {
         return FAILED;
     }
 
-    init( &itr, stack );        //reinitialization of iterator structure
-    while ( !isEnd( &itr ) )
+    init( &itr, stack );        // Reinitialization of iterator structure
+
+    while ( !isEnd( &itr ) )    // Checking stored values
     {
         tmp = current( &itr );
 
@@ -368,7 +375,7 @@ int iterator_test() {
         next( &itr );
     }
 
-    next( &itr );
+    next( &itr );   // Checking the possibility of overcoming the end of the stack
 
     if ( !isEnd( &itr ) )
     {
@@ -377,7 +384,7 @@ int iterator_test() {
         return FAILED;
     }
 
-    tmp = getFirst( &itr );
+    tmp = getFirst( &itr ); // Checking method getFirst
 
     if ( (int) *tmp != 14 )
     {
