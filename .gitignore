@@ -1,0 +1,13 @@
+# Executables
+computer
+distributor
+stack
+integral
+
+#
+*.o
+*.gcda
+*.gcno
+
+# Text files
+*.txt
